@@ -1,0 +1,36 @@
+#!/bin/sh
+# backupscript
+# Simple Backup script
+# Version 1
+#backup all mysql databases
+# list MySQL databases and dump each
+DIR=/home/databases/backups/
+DATESTAMP=$(date +%Y%m%d)
+DB_USER=backupuser
+DB_PASS=DatabasePasswordHere
+CERT=/etc/ccrypt/private.key
+
+# remove old backups
+#find ${DIR} -type f -mtime +5 -exec rm -rf {} \;
+
+
+#DB_LIST=`mysql -u $DB_USER -p"$DB_PASS" -e'show databases;'`
+#DB_LIST=${DB_LIST##Database}
+#for DB in $DB_LIST;
+#do
+  mysqldump -u $DB_USER -p"$DB_PASS" --skip-triggers --opt --flush-logs --all-databases | gzip > ${DIR}${DATESTAMP}.sql.gz
+#done
+
+mysqlcheck -u $DB_USER -p"$DB_PASS" --all-databases | gzip > ${DIR}${DATESTAMP}-check_errors.log.gz
+
+cd ${DIR}
+tar --remove-files -czf ${DIR}${DATESTAMP}.tar.gz ${DATESTAMP}-check_errors.log.gz ${DATESTAMP}.sql.gz
+
+ccrypt --key SomeKeyHere --keyfile ${CERT} ${DIR}${DATESTAMP}.tar.gz
+
+# Check if sshfs is mounted before we try sync
+if grep -qs '/media/backup' /proc/mounts; then
+	rsync -zr ${DIR} /media/backup/
+elif grep -qs '/media/BACKUP_DISK' /proc/mounts; then
+	cp ${DIR}${DATESTAMP}.tar.gz.cpt /media/BACKUP_DISK/${DATESTAMP}.tar.gz.cpt
+fi
